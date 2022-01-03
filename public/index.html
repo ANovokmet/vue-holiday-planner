@@ -1,17 +1,97 @@
 <!DOCTYPE html>
 <html lang="">
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <link rel="icon" href="<%= BASE_URL %>favicon.ico">
-    <title><%= htmlWebpackPlugin.options.title %></title>
-  </head>
-  <body>
-    <noscript>
-      <strong>We're sorry but <%= htmlWebpackPlugin.options.title %> doesn't work properly without JavaScript enabled. Please enable it to continue.</strong>
-    </noscript>
-    <div id="app"></div>
-    <!-- built files will be auto injected -->
-  </body>
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <link rel="icon" href="<%= BASE_URL %>favicon.ico">
+  <title>
+    <%= htmlWebpackPlugin.options.title %>
+  </title>
+  <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <style>
+    html,
+    body {
+      height: 100%;
+    }
+
+    body {
+      margin: 0;
+      font-family: Roboto, "Helvetica Neue", sans-serif;
+      background-color: #FAFBFB;
+    }
+
+
+
+    .main-day {
+      background-color: #F8F7F9;
+    }
+
+    .weekend {
+      background-color: #E4E3E4;
+    }
+
+    .orange {
+      background-color: #FF6701;
+      color: white !important;
+    }
+
+    .orange.weekend {
+      background-color: #F4A682;
+    }
+
+
+    .green {
+      background-color: #349967;
+      color: white !important;
+    }
+
+    .green.weekend {
+      background-color: #7ccea5;
+    }
+
+    .purple {
+      background-color: #6666CC;
+      color: white !important;
+    }
+
+    .purple.weekend {
+      background-color: #7575d0;
+    }
+
+    .cell.today {
+      background-color: #72bdff;
+      color: white !important;
+    }
+
+    .today.weekend {
+      background-color: #a1d3ff;
+    }
+
+    .header-day.today {
+      position: relative;
+    }
+
+    .header-day.today::after {
+      content: '';
+      height: 30px;
+      width: 30px;
+      position: absolute;
+      border-radius: 50%;
+      border: 2px solid #87b8e9;
+    }
+  </style>
+</head>
+
+<body>
+  <noscript>
+    <strong>We're sorry but <%= htmlWebpackPlugin.options.title %> doesn't work properly without JavaScript enabled.
+        Please enable it to continue.</strong>
+  </noscript>
+  <div id="app"></div>
+  <!-- built files will be auto injected -->
+</body>
+
 </html>

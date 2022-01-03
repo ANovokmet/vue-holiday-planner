@@ -1,0 +1,654 @@
+<template>
+  <div class="container">
+    <div class="header">
+      <slot name="title" :from="from" :to="to">
+        <div
+          class="range"
+          v-if="from != null && to != null"
+          :style="{ marginLeft: sideContainerWidth }"
+        >
+          {{ dateFormat(from, "MMM YYYY") }} ― {{ dateFormat(to, "MMM YYYY") }}
+        </div>
+      </slot>
+    </div>
+    <div class="header">
+      <div
+        class="side-header side"
+        :style="{ width: sideContainerWidth }"
+      ></div>
+      <div class="main-header" ref="scrollHeader" @click="onHeaderClick">
+        <div
+          v-for="(item, index) in days"
+          :key="index"
+          class="header-day"
+          :class="item.headerClass"
+          :data-day-id="index"
+        >
+          {{ item.title }}
+        </div>
+      </div>
+    </div>
+    <div class="body">
+      <div class="side-body side" :style="{ width: sideContainerWidth }">
+        <div v-for="row in resources" :key="row.id" class="row row-side card">
+          <slot name="row-header" :row="row">
+            <img class="avatar" :src="row.img" />
+            <div class="card-content">
+              <div class="title">{{ row.title }}</div>
+              <div class="subtitle">{{ row.subtitle }}</div>
+            </div>
+          </slot>
+        </div>
+      </div>
+      <div
+        class="main-body"
+        ref="scrollBody"
+        @click="onBodyClick"
+        @mousedown="onBodyMousedown"
+      >
+        <div ref="rowContainer">
+          <div
+            v-for="row in resources"
+            :key="row.id"
+            class="row row-main"
+            :data-row-id="row.id"
+          >
+            <div
+              v-for="(item, index) in days"
+              :key="index"
+              class="main-day"
+              :class="[
+                _getDateClasses(row, item),
+                { selected: selected[item.key] && selectedRows[row.id] },
+              ]"
+              :data-day-id="index"
+            >
+              <div
+                class="day-content"
+                :class="{
+                  selected: selected[item.key] && selectedRows[row.id],
+                }"
+              >
+                {{ item.value }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script lang="ts">
+import { defineComponent } from 'vue';
+import dayjs, { Dayjs } from 'dayjs';
+import minMax from 'dayjs/plugin/minMax';
+import { debounce, throttle } from 'lodash';
+import { get } from './binary-search';
+import { Day, Resource } from './interfaces';
+dayjs.extend(minMax);
+
+const DAY_WIDTH = 40;
+const ROW_HEIGHT = 70;
+const SCROLLABLE_THRESHOLD_DELTA = 200;
+const SCROLLABLE_RANGE_EXPAND_WIDTH = 400;
+const DRAGGING_TRESHOLD = 5;
+
+interface Row {
+  resource: Resource;
+  top: number;
+}
+
+interface Refs {
+  scrollBody: HTMLElement;
+  scrollHeader: HTMLElement;
+  rowContainer: HTMLElement;
+}
+
+export default defineComponent({
+  name: 'ResourceView',
+  props: {
+    resources: {
+      type: Array,
+      required: true,
+    },
+    startDate: {
+      default: () => dayjs().startOf('day'),
+    },
+    sideContainerWidth: {
+      default: '200px'
+    },
+    maxDate: {
+      default: () => dayjs().startOf('year').add(12, 'month'),
+    },
+    minDate: {
+      default: () => dayjs().startOf('year').add(6, 'month'),
+    },
+    infiniteScroll: {
+      type: Boolean,
+      default: true,
+    },
+    customDays: {
+      type: Object,
+      default: () => ({}),
+    },
+    getClassFn: {
+      type: Function,
+      default: (date: Dayjs) => {
+        const d = date.day();
+        if (d === 6 || d === 0) {
+          return 'weekend';
+        }
+      },
+    },
+    getHeaderClassFn: {
+      type: Function,
+      default: (date: Dayjs) => {
+        return { 'today': date.isSame(dayjs(), 'day'), 'start-of-month': date.date() === 1 };
+      },
+    },
+    getDayValueFn: {
+      type: Function,
+      default: (date: Dayjs) => {
+        return date.date();
+      },
+    },
+    getDayHeaderFn: {
+      type: Function,
+      default: (date: Dayjs) => {
+        return date.format('dd')[0];
+      },
+    },
+  },
+  created() {
+    this.referenceDate = this.startDate;
+    this.checkScrollableThresholdHit = debounce(this._checkScrollableThresholdHit.bind(this), 250);
+    this.updateRange = throttle(this._updateRange.bind(this), 250);
+
+    this.referenceDate = this.startDate;
+
+    this.scrollableFrom = this.positionToDate(this.scrollableLeft);
+    this.scrollableTo = this.positionToDate(this.scrollableRight);
+  },
+  mounted() {
+    this.createDays();
+
+    const $refs = this.$refs as unknown as Refs;
+
+    const { scrollLeft, clientWidth } = $refs.scrollBody;
+    this._updateRange(scrollLeft, scrollLeft + clientWidth);
+    this.referenceScrollLeft = this.dateToPosition(this.referenceDate);
+
+    $refs.scrollBody.addEventListener('scroll', this.onBodyScroll.bind(this));
+
+    setTimeout(() => {
+      this.centerOn(this.startDate, 'auto');
+    });
+  },
+  methods: {
+    onBodyScroll(event: Event): void {
+      const $refs = this.$refs as unknown as Refs;
+      const { scrollLeft, clientWidth } = $refs.scrollBody;
+      $refs.scrollHeader.scrollLeft = scrollLeft;
+
+      this.checkScrollableThresholdHit(scrollLeft, clientWidth);
+      this.updateRange(scrollLeft, scrollLeft + clientWidth);
+    },
+    onHeaderClick(event: MouseEvent): void {
+      const target = event.target as HTMLElement;
+      if (target.dataset.dayId != null) {
+        const day = this.days[+target.dataset.dayId];
+        this.$emit('header-click', {
+          event,
+          date: day && day.date
+        });
+        this.centerOn(day.date);
+      }
+    },
+    onBodyClick(event: MouseEvent): void {
+      const target = event.target as HTMLElement;
+
+      const row = target.closest<HTMLElement>('[data-row-id]');
+      if (row) {
+        console.log(this.resources, +row.dataset.rowId!);
+        this.$emit('row-click', {
+          event,
+          row: this.resources[+row.dataset.rowId!]
+        });
+      }
+
+      const day = target.closest<HTMLElement>('[data-day-id]');
+      if (day) {
+        this.$emit('day-click', {
+          event,
+          row: row && this.resources[+row.dataset.rowId!],
+          date: day && this.days[+day.dataset.dayId!].date
+        });
+      }
+
+      if (!this.selecting) {
+        this.clearSelection();
+      }
+    },
+    /**
+     * start selection
+     */
+    onBodyMousedown(event: MouseEvent): void {
+      const target = event.target as HTMLElement;
+      const $refs = this.$refs as unknown as Refs;
+
+      // row container !!!
+      const rowContainer = $refs.rowContainer;
+      const rect = rowContainer!.getBoundingClientRect();
+      const initial_x = event.clientX - rect.left; //x position within the element.
+      const initial_y = event.clientY - rect.top;  //y position within the element.
+
+      const day = get(this.days, initial_x, c => c.left);
+      const row = get(this.rows, initial_y, c => c.top);
+      console.log(`x:${initial_x},y:${initial_y}`, day[0], row[0]);
+      const dayStart = day[0];
+      const rowStart = row[0];
+
+      let resizeTriggered = false;
+
+
+      const onMousemove = (event: MouseEvent) => {
+
+        const rect = rowContainer!.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+
+
+        if (!resizeTriggered) {
+          if (Math.abs(x - initial_x) > DRAGGING_TRESHOLD || Math.abs(y - initial_y) > DRAGGING_TRESHOLD) {
+            resizeTriggered = true;
+          } else {
+            return;
+          }
+        } else {
+          this.selecting = true;
+
+          const day = get(this.days, x, c => c.left);
+          const row = get(this.rows, y, c => c.top);
+
+          const dayEnd = day[0];
+          const rowEnd = row[0] || row[1];
+
+          const left = dayStart.left <= dayEnd.left ? dayStart : dayEnd;
+          const right = dayStart.left <= dayEnd.left ? dayEnd : dayStart;
+          const top = rowStart.top <= rowEnd.top ? rowStart : rowEnd;
+          const bottom = rowStart.top <= rowEnd.top ? rowEnd : rowStart;
+
+          const selected: any = {};
+          const selectedRows: any = {};
+          for (const day of this.days) {
+            if (day.left >= left.left && day.left <= right.left) {
+              selected[day.key] = true;
+            }
+          }
+          for (const row of this.rows) {
+            if (row.top >= top.top && row.top <= bottom.top) {
+              selectedRows[row.resource.id] = true;
+            }
+          }
+
+          this.selected = selected;
+          this.selectedRows = selectedRows;
+
+          console.log(selected, selectedRows);
+        }
+      }
+
+      const onMouseup = (event: MouseEvent) => {
+        console.log('mouseup');
+        setTimeout(() => {
+          this.selecting = false;
+        })
+
+        const rect = rowContainer!.getBoundingClientRect();
+        const x = event.clientX - rect.left; //x position within the element.
+        const y = event.clientY - rect.top;  //y position within the element.
+
+        const day = get(this.days, x, c => c.left);
+        const row = get(this.rows, y, c => c.top);
+        console.log(`x:${x},y:${y}`, day[0]);
+
+        const dayEnd = day[0];
+        const rowEnd = row[0] || row[1];
+
+        const left = dayStart.left <= dayEnd.left ? dayStart : dayEnd;
+        const right = dayStart.left <= dayEnd.left ? dayEnd : dayStart;
+        const top = rowStart.top <= rowEnd.top ? rowStart : rowEnd;
+        const bottom = rowStart.top <= rowEnd.top ? rowEnd : rowStart;
+
+        const dates: Dayjs[] = [];
+        const resources: Resource[] = [];
+        for (const day of this.days) {
+          if (day.left >= left.left && day.left <= right.left) {
+            if (this.selected[day.key]) {
+              dates.push(day.date);
+            }
+          }
+        }
+        for (const row of this.rows) {
+          if (row.top >= top.top && row.top <= bottom.top) {
+            if (this.selectedRows[row.resource.id]) {
+              resources.push(row.resource);
+            }
+          }
+        }
+
+        this.$emit('selection-end', {
+          event,
+          dates,
+          resources
+        });
+
+        document.body.removeEventListener('mousemove', onMousemove);
+        document.body.removeEventListener('mouseup', onMouseup);
+      }
+
+      document.body.addEventListener('mousemove', onMousemove);
+      document.body.addEventListener('mouseup', onMouseup);
+    },
+    centerOn(date: dayjs.Dayjs, behavior: 'smooth' | 'auto' | undefined = 'smooth'): void {
+      const $refs = this.$refs as unknown as Refs;
+      const { clientWidth } = $refs.scrollBody;
+      const left = this.dateToPosition(date);
+      $refs.scrollBody.scrollTo({
+        left: left + DAY_WIDTH / 2 - clientWidth / 2.0,
+        behavior
+      });
+    },
+    positionToDate(x: number): dayjs.Dayjs {
+      const numDays = Math.floor(x / DAY_WIDTH);
+      return this.referenceDate.add(numDays, 'day');
+    },
+    dateToPosition(date: dayjs.Dayjs): number {
+      const diff = date.diff(this.scrollableFrom, 'day');
+      return this.days[diff].left;
+    },
+    _checkScrollableThresholdHit(scrollLeft: number, clientWidth: number): void {
+      if (scrollLeft - this.referenceScrollLeft < this.scrollableLeftThreshold) {
+        console.debug('left threshold hit');
+        this._expandScrollableRange(this.scrollableLeft - SCROLLABLE_RANGE_EXPAND_WIDTH, this.scrollableRight);
+      }
+
+      if (scrollLeft + clientWidth - this.referenceScrollLeft > this.scrollableRightThreshold) {
+        console.debug('right threshold hit');
+        this._expandScrollableRange(this.scrollableLeft, this.scrollableRight + SCROLLABLE_RANGE_EXPAND_WIDTH);
+      }
+    },
+    _expandScrollableRange(scrollableLeft: number, scrollableRight: number): void {
+      const scrollableLeftChange = this.scrollableLeft - scrollableLeft;
+
+      this.scrollableLeft = scrollableLeft;
+      this.scrollableRight = scrollableRight;
+
+      this.scrollableFrom = this.minDate && !this.infiniteScroll ?
+        dayjs.max(this.positionToDate(this.scrollableLeft), this.minDate) : this.positionToDate(this.scrollableLeft);
+      this.scrollableTo = this.maxDate && !this.infiniteScroll ?
+        dayjs.min(this.positionToDate(this.scrollableRight), this.maxDate) : this.positionToDate(this.scrollableRight);
+      this.scrollableLeftThreshold = this.scrollableLeft + SCROLLABLE_THRESHOLD_DELTA;
+      this.scrollableRightThreshold = this.scrollableRight - SCROLLABLE_THRESHOLD_DELTA;
+
+      const $refs = this.$refs as unknown as Refs;
+      $refs.scrollBody.scrollLeft += scrollableLeftChange;
+      $refs.scrollHeader.scrollLeft = $refs.scrollBody.scrollLeft;
+
+      this.createDays();
+
+      this.referenceScrollLeft = this.dateToPosition(this.referenceDate);
+    },
+    clearSelection() {
+      this.selected = {};
+      this.selectedRows = {};
+    },
+    createDays(): void {
+      let current = this.scrollableFrom;
+      this.days = [];
+      let left = 0;
+      while (current < this.scrollableTo) {
+        const key = this.getKey(current);
+        const day = {
+          title: this.getDayHeaderFn(current),
+          value: this.getDayValueFn(current),
+          key,
+          date: current,
+          headerClass: this.getHeaderClassFn(current),
+          class: this._getDateClass(current),
+          left
+        };
+
+        this.days.push(day);
+        left += DAY_WIDTH;
+        current = current.add(1, 'day');
+      }
+    },
+    _getDateClass(date: dayjs.Dayjs): string {
+      const classes: string[] = [];
+      const key = this.getKey(date);
+      const customDay = this.customDays[key];
+      if (customDay) {
+        classes.push(customDay.class);
+      }
+
+      if (this.getClassFn) {
+        const c = this.getClassFn(date);
+        if (c) {
+          if (Array.isArray(c)) {
+            classes.push(...c);
+          } else {
+            classes.push(c);
+          }
+        }
+      }
+      return classes.join(' ');
+    },
+    _updateRange(left: number, right: number) {
+      const startIndex = Math.floor(left / DAY_WIDTH);
+      const endIndex = Math.floor(right / DAY_WIDTH) - 1;
+
+      const from = this.days[startIndex].date;
+      const to = this.days[endIndex].date;
+
+      this.from = from;
+      this.to = to;
+    },
+    getKey(value: dayjs.Dayjs): string {
+      return value.format('DDMMYYYY');
+    },
+    _getDateClasses(row: Resource, day: Day): any {
+      return (this.classes[row.id][day.key] || '') + (day.class ? ' ' + day.class : '');
+    }
+  },
+  computed: {
+    dateFormat() {
+      return (date: Dayjs, format: string) => {
+        return date.format(format);
+      };
+    },
+    classes() {
+      const value = this.resources as Resource[];
+      const _classes: { [rowId: number]: any } = {};
+      for (const row of value) {
+        _classes[row.id] = {};
+        if (row.days) {
+          for (const day of row.days) {
+            const key = this.getKey(day.date);
+            _classes[row.id][key] = day.class;
+          }
+        }
+      }
+      return _classes;
+    },
+    rows() {
+      const resources = this.resources as Resource[];
+      const _rows: Row[] = [];
+      let top = 0;
+      for (const resource of resources) {
+        _rows.push({
+          resource,
+          top
+        });
+        top += ROW_HEIGHT;
+      }
+      return _rows;
+    },
+  },
+  data() {
+    return {
+      days: [] as Day[],
+      from: null as any,
+      to: null as any,
+
+      selected: {} as any,
+      selectedRows: {} as any,
+
+      today: dayjs(),
+      referenceDate: null as any,
+      referenceScrollLeft: null as unknown as number,
+      scrollableFrom: null as unknown as Dayjs,
+      scrollableTo: null as unknown as Dayjs,
+      scrollableLeft: -1200,
+      scrollableRight: 1200,
+      scrollableLeftThreshold: null as unknown as number,
+      scrollableRightThreshold: null as unknown as number,
+
+      checkScrollableThresholdHit: null as unknown as (scrollLeft: number, clientWidth: number) => void,
+      updateRange: null as unknown as (left: number, right: number) => void,
+      selecting: false
+    };
+  }
+});
+</script>
+
+<style scoped>
+.container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.body {
+  display: flex;
+  flex-grow: 1;
+}
+
+.main-body {
+  flex: 1 1 0;
+  overflow: auto;
+  background-color: #fafbfb;
+}
+
+.header {
+  display: flex;
+}
+
+.main-header {
+  flex: 1 1 0;
+  display: flex;
+  overflow: hidden;
+  height: 40px;
+}
+
+.side {
+  margin-right: 35px;
+}
+
+.row-main {
+}
+
+.header-day {
+  flex: 0 0 40px;
+
+  cursor: pointer;
+  color: #cc6799;
+  font-weight: 500;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease-out;
+}
+
+.main-day {
+  flex: 0 0 40px;
+  height: 40px;
+
+  cursor: pointer;
+  color: #676565;
+}
+
+.row {
+  height: 70px;
+  display: flex;
+  align-items: center;
+}
+
+.range {
+  padding: 30px;
+  font-size: 24px;
+  color: #676565;
+}
+
+.start-of-month {
+}
+
+.card .avatar {
+  height: 56px;
+  width: 56px;
+  border-radius: 50%;
+  margin-right: 20px;
+}
+
+.card .title {
+  margin-bottom: 4px;
+  font-weight: 500;
+  color: #333333;
+}
+
+.card .subtitle {
+  color: #8c8c8c;
+}
+
+.card .title,
+.card .subtitle {
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.5px;
+}
+
+.card-content {
+  overflow: auto;
+}
+
+.main-body,
+.main-header {
+  user-select: none;
+}
+
+.day-content {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.1s ease-in-out;
+}
+
+.day-content:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.day-content.selected {
+  background: #87b8e982;
+  color: white;
+}
+
+.day-content.selected:hover {
+  background: #5b99d682;
+  color: white;
+}
+</style>
