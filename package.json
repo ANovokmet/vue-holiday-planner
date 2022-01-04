@@ -5,7 +5,7 @@
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
-    "build-gh-pages": "vue-cli-service build --dest docs --public-path /vue-holiday-planner/",
+    "build-gh-pages": "vue-cli-service build --dest docs",
     "build-bundle": "vue-cli-service build --target lib --name vue-holiday-planner ./src/components/index.ts",
     "lint": "vue-cli-service lint"
   },
