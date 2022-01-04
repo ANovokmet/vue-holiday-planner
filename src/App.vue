@@ -1,5 +1,5 @@
 <template>
-  <ResourceView
+  <HolidayPlanner
     :resources="rows"
     :infiniteScroll="true"
     :customDays="{'01022022': { class: 'orange' }}"
@@ -7,6 +7,7 @@
     @row-click="onRowClick"
     @day-click="onDayClick"
     @selection-end="onSelectionEnd"
+    class="holiday-planner"
   >    
   <!-- Custom row template -->
   <!--   
@@ -21,13 +22,12 @@
       <div >From:{{from && from.format('MMM D. YYYY')}}, To:{{to && to.format('MMM D. YYYY')}}</div>
   </template>  
   -->
- 
-  </ResourceView>
+  </HolidayPlanner>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import ResourceView from "./components/ResourceView.vue";
+import HolidayPlanner from "./components/HolidayPlanner.vue";
 import dayjs from "dayjs";
 
 function generateRows() {
@@ -37,45 +37,41 @@ function generateRows() {
   }
 
   const colors = ["orange", "green", "purple"];
-  const rows: any[] = [
+  const templateRows: any[] = [
     {
-      id: 1,
       title: "Krystalle Logie",
       subtitle: "Senior Sales Associate",
       img: "assets/woman1.jpg",
-      days: [],
     },
     {
-      id: 2,
       title: "Izabel Riveles",
       subtitle: "Senior Financial Analyst",
       img: "assets/woman2.jpg",
-      days: [],
     },
     {
-      id: 3,
       title: "Rancell Qualtrough",
       subtitle: "Information Systems Manager",
       img: "assets/man2.jpg",
-      days: [],
     },
     {
-      id: 4,
       title: "Pearle Vowels",
       subtitle: "Recruiter",
       img: "assets/man1.jpg",
-      days: [],
     },
     {
-      id: 5,
       title: "Marysa Rable",
       subtitle: "VP Product Management",
       img: "assets/woman3.jpg",
-      days: [],
     },
   ];
 
-  for (let i = 0; i < 5; i++) {
+  const rows: any[] = [];
+  for (let i = 0; i < 10; i++) {
+    const row = {
+      ...templateRows[i % templateRows.length],
+      id: i,
+      days: [],
+    };
     const days = [];
     for (let j = 0; j < 24; j++) {
       const duration = Math.floor(Math.random() * 5);
@@ -90,7 +86,8 @@ function generateRows() {
         date = date.add(1, "day");
       }
     }
-    rows[i].days = days;
+    row.days = days;
+    rows.push(row);
   }
   return rows;
 }
@@ -98,7 +95,7 @@ function generateRows() {
 export default defineComponent({
   name: "App",
   components: {
-    ResourceView,
+    HolidayPlanner,
   },
   methods: {
     onHeaderClick(e: any) {
@@ -123,4 +120,7 @@ export default defineComponent({
 </script>
 
 <style>
+.holiday-planner {
+  height: 600px;
+}
 </style>

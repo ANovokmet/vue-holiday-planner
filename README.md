@@ -11,19 +11,19 @@ npm TBD
 
 ```js
 <template>
-  <ResourceView :resources="rows">    
-  </ResourceView>
+  <HolidayPlanner :resources="rows">    
+  </HolidayPlanner>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import ResourceView from "./components/ResourceView.vue";
+import HolidayPlanner from "./components/HolidayPlanner.vue";
 import dayjs from "dayjs";
 
 export default defineComponent({
   name: "App",
   components: {
-    ResourceView,
+    HolidayPlanner,
   },
   data() {
     return {
@@ -159,7 +159,7 @@ Example:
 ```
 
  - `Custom title template`
- 
+
 Example:
 
 ```html

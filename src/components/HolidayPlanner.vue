@@ -9,28 +9,32 @@
     </div>
     <div class="header">
       <div class="side-header side"></div>
-      <div class="main-header" ref="scrollHeader" @click="onHeaderClick">
-        <div
-          v-for="(item, index) in days"
-          class="header-day"
-          :key="index"
-          :class="item.headerClass"
-          :data-day-id="index"
-        >
-          {{ item.title }}
+      <div class="main-header" @click="onHeaderClick" :class="{'hp-right-scrollbar-visible': rightScrollbarVisible}">
+        <div class="hp-header-scroller" ref="scrollHeader">
+          <div
+            v-for="(item, index) in days"
+            class="header-day"
+            :key="index"
+            :class="item.headerClass"
+            :data-day-id="index"
+          >
+            {{ item.title }}
+          </div>
         </div>
       </div>
     </div>
     <div class="body">
-      <div class="side-body side">
-        <div v-for="row in resources" :key="row.id" class="row row-side card">
-          <slot name="row-header" :row="row">
-            <img class="avatar" :src="row.img" />
-            <div class="card-content">
-              <div class="title">{{ row.title }}</div>
-              <div class="subtitle">{{ row.subtitle }}</div>
-            </div>
-          </slot>
+      <div class="side-body side hp-bottom-scrollbar-visible">
+        <div class="hp-side-scroller" ref="scrollSide">
+          <div v-for="row in resources" :key="row.id" class="row row-side card">
+            <slot name="row-header" :row="row">
+              <img class="avatar" :src="row.img" />
+              <div class="card-content">
+                <div class="title">{{ row.title }}</div>
+                <div class="subtitle">{{ row.subtitle }}</div>
+              </div>
+            </slot>
+          </div>
         </div>
       </div>
       <div
@@ -68,11 +72,12 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { defineComponent, PropType, ref } from 'vue';
 import dayjs, { Dayjs } from 'dayjs';
 import minMax from 'dayjs/plugin/minMax';
 import { clamp, debounce, throttle } from 'lodash';
 import { Day, Resource } from './interfaces';
+import { add_resize_listener } from './resize-listener';
 dayjs.extend(minMax);
 
 const DAY_WIDTH = 40;
@@ -86,34 +91,44 @@ interface Row {
   top: number;
 }
 
-interface Refs {
-  scrollBody: HTMLElement;
-  scrollHeader: HTMLElement;
-  rowContainer: HTMLElement;
-}
-
 export default defineComponent({
-  name: 'ResourceView',
+  setup() {
+    const scrollBody = ref<HTMLElement>();
+    const scrollHeader = ref<HTMLElement>();
+    const rowContainer = ref<HTMLElement>();
+    const scrollSide = ref<HTMLElement>();
+
+    return {
+      scrollBody,
+      scrollHeader,
+      rowContainer,
+      scrollSide
+    }
+  },
+  name: 'HolidayPlanner',
   props: {
     /**
      * Rows to display
      */
     resources: {
-      type: Array,
+      type: Array as PropType<Resource[]>,
       required: true,
     },
     /**
      * Planner initializes on this date and scrolls to it initially
      */
     startDate: {
+      type: Object as PropType<Dayjs>,
       default: () => dayjs().startOf('day'),
     },
     /** if infinite scroll is disabled, this is max scrollable date */
     maxDate: {
+      type: Object as PropType<Dayjs>,
       default: () => dayjs().endOf('year'),
     },
     /** if infinite scroll is disabled, this is min scrollable date */
     minDate: {
+      type: Object as PropType<Dayjs>,
       default: () => dayjs().startOf('year'),
     },
     /** is infinite scroll enabled */
@@ -123,14 +138,14 @@ export default defineComponent({
     },
     /** map of custom day classes to apply to dates, eg. {'DDMMYYYY': { class: 'class name' }} */
     customDays: {
-      type: Object,
+      type: Object as PropType<{ [key: string]: { class: string } }>,
       default: () => ({}),
     },
     /** 
      * Function to generate classes of body days
      */
     getClassFn: {
-      type: Function,
+      type: Function as PropType<(date: Dayjs) => string|string[]>,
       default: (date: Dayjs) => {
         const d = date.day();
         if (d === 6 || d === 0) {
@@ -142,7 +157,7 @@ export default defineComponent({
      * Function to generate classes of header days
      */
     getHeaderClassFn: {
-      type: Function,
+      type: Function as PropType<(date: Dayjs) => any>,
       default: (date: Dayjs) => {
         return {
           'today': date.isSame(dayjs(), 'day'),
@@ -152,14 +167,14 @@ export default defineComponent({
     },
     /** function for date labels in body */
     getDayValueFn: {
-      type: Function,
+      type: Function as PropType<(date: Dayjs) => any>,
       default: (date: Dayjs) => {
         return date.date();
       },
     },
     /** function for date labels in header */
     getDayHeaderFn: {
-      type: Function,
+      type: Function as PropType<(date: Dayjs) => any>,
       default: (date: Dayjs) => {
         return date.format('dd')[0];
       },
@@ -172,38 +187,42 @@ export default defineComponent({
   },
   created() {
     this.referenceDate = this.startDate;
-    this.checkScrollableThresholdHit = debounce(this._checkScrollableThresholdHit.bind(this), 250);
-    this.updateRange = throttle(this._updateRange.bind(this), 250);
-
-    this.referenceDate = this.startDate;
-
     this.scrollableFrom = this.positionToDate(this.scrollableLeft);
     this.scrollableTo = this.positionToDate(this.scrollableRight);
   },
   mounted() {
     this.createDays();
 
-    const $refs = this.$refs as unknown as Refs;
-
-    const { scrollLeft, clientWidth } = $refs.scrollBody;
+    const { scrollLeft, clientWidth } = this.scrollBody!;
     this._updateRange(scrollLeft, scrollLeft + clientWidth);
-    this.referenceScrollLeft = this.dateToPosition(this.referenceDate);
+    this.referenceScrollLeft = this.dateToPosition(this.referenceDate!);
 
-    $refs.scrollBody.addEventListener('scroll', this.onBodyScroll.bind(this));
+    this.scrollBody!.addEventListener('scroll', this.onBodyScroll.bind(this));
+
+    add_resize_listener(this.scrollBody!, () => {
+      const { clientWidth, clientHeight } = this.scrollBody!;
+      this.visibleWidth = clientWidth;
+      this.visibleHeight = clientHeight;
+    });
 
     setTimeout(() => {
       this.centerOn(this.startDate, 'auto');
     });
+
   },
   methods: {
+
     onBodyScroll(event: Event): void {
-      const $refs = this.$refs as unknown as Refs;
-      const { scrollLeft, clientWidth } = $refs.scrollBody;
-      $refs.scrollHeader.scrollLeft = scrollLeft;
+      const { scrollLeft, scrollTop, clientWidth } = this.scrollBody!;
+      requestAnimationFrame(() => {
+        this.scrollHeader!.scrollLeft = scrollLeft; // fix lagging
+        this.scrollSide!.scrollTop = scrollTop;
+      });
 
       this.checkScrollableThresholdHit(scrollLeft, clientWidth);
       this.updateRange(scrollLeft, scrollLeft + clientWidth);
     },
+
     onHeaderClick(event: MouseEvent): void {
       const target = event.target as HTMLElement;
       if (target.dataset.dayId != null) {
@@ -215,6 +234,7 @@ export default defineComponent({
         this.centerOn(day.date);
       }
     },
+
     onBodyClick(event: MouseEvent): void {
       const target = event.target as HTMLElement;
 
@@ -239,6 +259,7 @@ export default defineComponent({
         this.clearSelection();
       }
     },
+
     /**
      * start selection
      */
@@ -248,12 +269,8 @@ export default defineComponent({
         return;
       }
 
-      const $refs = this.$refs as unknown as Refs;
-
-      const rowContainer = $refs.rowContainer;
-
-      function getXY(event: MouseEvent): { x: number, y: number } {
-        const rect = rowContainer!.getBoundingClientRect();
+      const getXY = (event: MouseEvent): { x: number, y: number } => {
+        const rect = this.rowContainer!.getBoundingClientRect();
         return {
           x: event.clientX - rect.left,
           y: event.clientY - rect.top,
@@ -338,33 +355,37 @@ export default defineComponent({
       document.body.addEventListener('mousemove', onMousemove);
       document.body.addEventListener('mouseup', onMouseup);
     },
-    centerOn(date: dayjs.Dayjs, behavior: 'smooth' | 'auto' | undefined = 'smooth'): void {
-      const $refs = this.$refs as unknown as Refs;
-      const { clientWidth } = $refs.scrollBody;
+
+    centerOn(date: Dayjs, behavior: 'smooth' | 'auto' | undefined = 'smooth'): void {
+      const { clientWidth } = this.scrollBody!;
       const left = this.dateToPosition(date);
-      $refs.scrollBody.scrollTo({
+      this.scrollBody!.scrollTo({
         left: left + DAY_WIDTH / 2 - clientWidth / 2.0,
         behavior
       });
     },
-    positionToDate(x: number): dayjs.Dayjs {
+
+    positionToDate(x: number): Dayjs {
       const numDays = Math.floor(x / DAY_WIDTH);
-      return this.referenceDate.add(numDays, 'day');
+      return this.referenceDate!.add(numDays, 'day');
     },
-    dateToPosition(date: dayjs.Dayjs): number {
+
+    dateToPosition(date: Dayjs): number {
       const diff = date.diff(this.scrollableFrom, 'day');
       const ix = clamp(diff, 0, this.days.length - 1);
       return this.days[ix].left;
     },
+
     _checkScrollableThresholdHit(scrollLeft: number, clientWidth: number): void {
-      if (scrollLeft - this.referenceScrollLeft < this.scrollableLeftThreshold) {
+      if (scrollLeft - this.referenceScrollLeft! < this.scrollableLeftThreshold) {
         this._expandScrollableRange(this.scrollableLeft - SCROLLABLE_RANGE_EXPAND_WIDTH, this.scrollableRight);
       }
 
-      if (scrollLeft + clientWidth - this.referenceScrollLeft > this.scrollableRightThreshold) {
+      if (scrollLeft + clientWidth - this.referenceScrollLeft! > this.scrollableRightThreshold) {
         this._expandScrollableRange(this.scrollableLeft, this.scrollableRight + SCROLLABLE_RANGE_EXPAND_WIDTH);
       }
     },
+
     _expandScrollableRange(scrollableLeft: number, scrollableRight: number): void {
       const scrollableLeftChange = this.scrollableLeft - scrollableLeft;
 
@@ -380,23 +401,24 @@ export default defineComponent({
       this.scrollableLeftThreshold = this.scrollableLeft + SCROLLABLE_THRESHOLD_DELTA;
       this.scrollableRightThreshold = this.scrollableRight - SCROLLABLE_THRESHOLD_DELTA;
 
-      const $refs = this.$refs as unknown as Refs;
-      $refs.scrollBody.scrollLeft += scrollableLeftChange;
-      $refs.scrollHeader.scrollLeft = $refs.scrollBody.scrollLeft;
+      this.scrollBody!.scrollLeft += scrollableLeftChange;
+      this.scrollHeader!.scrollLeft = this.scrollBody!.scrollLeft;
 
       this.createDays();
 
-      this.referenceScrollLeft = this.dateToPosition(this.referenceDate);
+      this.referenceScrollLeft = this.dateToPosition(this.referenceDate!);
     },
+
     clearSelection() {
       this.selected = {};
       this.selectedRows = {};
     },
+
     createDays(): void {
-      let current = this.scrollableFrom;
+      let current = this.scrollableFrom!;
       this.days = [];
       let left = 0;
-      while (current < this.scrollableTo) {
+      while (current < this.scrollableTo!) {
         const key = this.getKey(current);
         const day = {
           title: this.getDayHeaderFn(current),
@@ -413,7 +435,8 @@ export default defineComponent({
         current = current.add(1, 'day');
       }
     },
-    _getDateClass(date: dayjs.Dayjs): string {
+
+    _getDateClass(date: Dayjs): string {
       const classes: string[] = [];
       const key = this.getKey(date);
       const customDay = this.customDays[key];
@@ -433,6 +456,7 @@ export default defineComponent({
       }
       return classes.join(' ');
     },
+
     _updateRange(left: number, right: number) {
       const startIndex = Math.floor(left / DAY_WIDTH);
       const endIndex = Math.floor(right / DAY_WIDTH) - 1;
@@ -443,12 +467,15 @@ export default defineComponent({
       this.from = from;
       this.to = to;
     },
-    getKey(value: dayjs.Dayjs): string {
+
+    getKey(value: Dayjs): string {
       return value.format('DDMMYYYY');
     },
+
     _getDateClasses(row: Resource, day: Day): any {
       return (this.classes[row.id][day.key] || '') + (day.class ? ' ' + day.class : '');
     }
+
   },
   computed: {
     dateFormat() {
@@ -483,6 +510,12 @@ export default defineComponent({
       }
       return _rows;
     },
+    rowContainerHeight() {
+      return this.rows.length * ROW_HEIGHT;
+    },
+    rightScrollbarVisible() {
+      return this.rowContainerHeight > this.visibleHeight;
+    }
   },
   data() {
     return {
@@ -490,22 +523,25 @@ export default defineComponent({
       from: null as any,
       to: null as any,
 
-      selected: {} as any,
-      selectedRows: {} as any,
+      selected: {} as { [key: string]: boolean },
+      selectedRows: {} as { [key: string]: boolean },
 
       today: dayjs(),
-      referenceDate: null as any,
-      referenceScrollLeft: null as unknown as number,
-      scrollableFrom: null as unknown as Dayjs,
-      scrollableTo: null as unknown as Dayjs,
+      referenceDate: null as Dayjs | null,
+      referenceScrollLeft: 0,
+      scrollableFrom: null as Dayjs | null,
+      scrollableTo: null as Dayjs | null,
       scrollableLeft: -1200,
       scrollableRight: 1200,
       scrollableLeftThreshold: null as unknown as number,
       scrollableRightThreshold: null as unknown as number,
 
-      checkScrollableThresholdHit: null as unknown as (scrollLeft: number, clientWidth: number) => void,
-      updateRange: null as unknown as (left: number, right: number) => void,
-      selecting: false
+      checkScrollableThresholdHit: debounce(this._checkScrollableThresholdHit.bind(this), 250),
+      updateRange: throttle(this._updateRange.bind(this), 250),
+      selecting: false,
+
+      visibleWidth: 0,
+      visibleHeight: 0
     };
   }
 });
@@ -521,6 +557,7 @@ export default defineComponent({
 .body {
   display: flex;
   flex-grow: 1;
+  overflow: auto;
 }
 
 .main-body {
@@ -529,23 +566,42 @@ export default defineComponent({
   background-color: #fafbfb;
 }
 
+.side-body {
+  display: flex;
+  overflow: hidden;
+}
+
+.hp-bottom-scrollbar-visible {
+  padding-bottom: 17px;
+}
+
+.hp-side-scroller {
+  overflow: hidden;
+}
+
 .header {
   display: flex;
 }
 
 .main-header {
-  flex: 1 1 0;
   display: flex;
+  flex: 1 1 0;
   overflow: hidden;
   height: 40px;
+}
+
+.hp-header-scroller {
+  display: flex;
+  overflow: hidden;
+}
+
+.hp-right-scrollbar-visible {
+  padding-right: 17px;
 }
 
 .side {
   margin-right: 35px;
   width: 200px;
-}
-
-.row-main {
 }
 
 .header-day {

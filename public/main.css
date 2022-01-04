@@ -45,11 +45,6 @@ body {
     background-color: #7575d0;
 }
 
-.cell.today {
-    background-color: #72bdff;
-    color: white !important;
-}
-
 .today.weekend {
     background-color: #a1d3ff;
 }
