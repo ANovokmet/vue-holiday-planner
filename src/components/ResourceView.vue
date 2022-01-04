@@ -71,7 +71,7 @@
 import { defineComponent } from 'vue';
 import dayjs, { Dayjs } from 'dayjs';
 import minMax from 'dayjs/plugin/minMax';
-import { debounce, throttle } from 'lodash';
+import { clamp, debounce, throttle } from 'lodash';
 import { Day, Resource } from './interfaces';
 dayjs.extend(minMax);
 
@@ -95,26 +95,33 @@ interface Refs {
 export default defineComponent({
   name: 'ResourceView',
   props: {
+    /**
+     * Rows to display
+     */
     resources: {
       type: Array,
       required: true,
     },
+    /**
+     * Planner initializes on this date and scrolls to it initially
+     */
     startDate: {
       default: () => dayjs().startOf('day'),
     },
-    sideContainerWidth: {
-      default: '200px'
-    },
+    /** if infinite scroll is disabled, this is max scrollable date */
     maxDate: {
-      default: () => dayjs().startOf('year').add(12, 'month'),
+      default: () => dayjs().endOf('year'),
     },
+    /** if infinite scroll is disabled, this is min scrollable date */
     minDate: {
-      default: () => dayjs().startOf('year').add(6, 'month'),
+      default: () => dayjs().startOf('year'),
     },
+    /** is infinite scroll enabled */
     infiniteScroll: {
       type: Boolean,
       default: true,
     },
+    /** map of custom day classes to apply to dates, eg. {'DDMMYYYY': { class: 'class name' }} */
     customDays: {
       type: Object,
       default: () => ({}),
@@ -137,24 +144,27 @@ export default defineComponent({
     getHeaderClassFn: {
       type: Function,
       default: (date: Dayjs) => {
-        return { 
-          'today': date.isSame(dayjs(), 'day'), 
-          'start-of-month': date.date() === 1 
+        return {
+          'today': date.isSame(dayjs(), 'day'),
+          'start-of-month': date.date() === 1
         };
       },
     },
+    /** function for date labels in body */
     getDayValueFn: {
       type: Function,
       default: (date: Dayjs) => {
         return date.date();
       },
     },
+    /** function for date labels in header */
     getDayHeaderFn: {
       type: Function,
       default: (date: Dayjs) => {
         return date.format('dd')[0];
       },
     },
+    /** enable selection of dates */
     selectionEnabled: {
       type: Boolean,
       default: true,
@@ -234,7 +244,7 @@ export default defineComponent({
      */
     onBodyMousedown(event: MouseEvent): void {
 
-      if(!this.selectionEnabled) {
+      if (!this.selectionEnabled) {
         return;
       }
 
@@ -343,7 +353,8 @@ export default defineComponent({
     },
     dateToPosition(date: dayjs.Dayjs): number {
       const diff = date.diff(this.scrollableFrom, 'day');
-      return this.days[diff].left;
+      const ix = clamp(diff, 0, this.days.length - 1);
+      return this.days[ix].left;
     },
     _checkScrollableThresholdHit(scrollLeft: number, clientWidth: number): void {
       if (scrollLeft - this.referenceScrollLeft < this.scrollableLeftThreshold) {
@@ -360,10 +371,12 @@ export default defineComponent({
       this.scrollableLeft = scrollableLeft;
       this.scrollableRight = scrollableRight;
 
-      this.scrollableFrom = this.minDate && !this.infiniteScroll ?
-        dayjs.max(this.positionToDate(this.scrollableLeft), this.minDate) : this.positionToDate(this.scrollableLeft);
-      this.scrollableTo = this.maxDate && !this.infiniteScroll ?
-        dayjs.min(this.positionToDate(this.scrollableRight), this.maxDate) : this.positionToDate(this.scrollableRight);
+      this.scrollableFrom = this.minDate && !this.infiniteScroll
+        ? dayjs.max(this.positionToDate(this.scrollableLeft), this.minDate) 
+        : this.positionToDate(this.scrollableLeft);
+      this.scrollableTo = this.maxDate && !this.infiniteScroll 
+        ? dayjs.min(this.positionToDate(this.scrollableRight), this.maxDate) 
+        : this.positionToDate(this.scrollableRight);
       this.scrollableLeftThreshold = this.scrollableLeft + SCROLLABLE_THRESHOLD_DELTA;
       this.scrollableRightThreshold = this.scrollableRight - SCROLLABLE_THRESHOLD_DELTA;
 

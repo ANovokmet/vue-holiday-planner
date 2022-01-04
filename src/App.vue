@@ -1,6 +1,8 @@
 <template>
   <ResourceView
     :resources="rows"
+    :infiniteScroll="true"
+    :customDays="{'01022022': { class: 'orange' }}"
     @header-click="onHeaderClick"
     @row-click="onRowClick"
     @day-click="onDayClick"
@@ -30,7 +32,7 @@ import dayjs from "dayjs";
 
 function generateRows() {
   const startOfYear = dayjs().startOf("year");
-  function rnd() {
+  function randomDate() {
     return startOfYear.add(Math.floor(Math.random() * 365), "day");
   }
 
@@ -79,13 +81,13 @@ function generateRows() {
       const duration = Math.floor(Math.random() * 5);
       const classes = colors[j % 3];
 
-      let d = rnd();
+      let date = randomDate();
       for (let k = 0; k < duration; k++) {
         days.push({
-          date: d,
+          date: date,
           class: classes,
         });
-        d = d.add(1, "day");
+        date = date.add(1, "day");
       }
     }
     rows[i].days = days;
