@@ -2,25 +2,18 @@
   <div class="container">
     <div class="header">
       <slot name="title" :from="from" :to="to">
-        <div
-          class="range"
-          v-if="from != null && to != null"
-          :style="{ marginLeft: sideContainerWidth }"
-        >
+        <div class="range" v-if="from != null && to != null">
           {{ dateFormat(from, "MMM YYYY") }} ― {{ dateFormat(to, "MMM YYYY") }}
         </div>
       </slot>
     </div>
     <div class="header">
-      <div
-        class="side-header side"
-        :style="{ width: sideContainerWidth }"
-      ></div>
+      <div class="side-header side"></div>
       <div class="main-header" ref="scrollHeader" @click="onHeaderClick">
         <div
           v-for="(item, index) in days"
-          :key="index"
           class="header-day"
+          :key="index"
           :class="item.headerClass"
           :data-day-id="index"
         >
@@ -29,7 +22,7 @@
       </div>
     </div>
     <div class="body">
-      <div class="side-body side" :style="{ width: sideContainerWidth }">
+      <div class="side-body side">
         <div v-for="row in resources" :key="row.id" class="row row-side card">
           <slot name="row-header" :row="row">
             <img class="avatar" :src="row.img" />
@@ -56,19 +49,14 @@
             <div
               v-for="(item, index) in days"
               :key="index"
-              class="main-day"
+              class="day-main"
               :class="[
                 _getDateClasses(row, item),
                 { selected: selected[item.key] && selectedRows[row.id] },
               ]"
               :data-day-id="index"
             >
-              <div
-                class="day-content"
-                :class="{
-                  selected: selected[item.key] && selectedRows[row.id],
-                }"
-              >
+              <div class="day-content">
                 {{ item.value }}
               </div>
             </div>
@@ -84,7 +72,6 @@ import { defineComponent } from 'vue';
 import dayjs, { Dayjs } from 'dayjs';
 import minMax from 'dayjs/plugin/minMax';
 import { debounce, throttle } from 'lodash';
-import { get } from './binary-search';
 import { Day, Resource } from './interfaces';
 dayjs.extend(minMax);
 
@@ -132,6 +119,9 @@ export default defineComponent({
       type: Object,
       default: () => ({}),
     },
+    /** 
+     * Function to generate classes of body days
+     */
     getClassFn: {
       type: Function,
       default: (date: Dayjs) => {
@@ -141,10 +131,16 @@ export default defineComponent({
         }
       },
     },
+    /**
+     * Function to generate classes of header days
+     */
     getHeaderClassFn: {
       type: Function,
       default: (date: Dayjs) => {
-        return { 'today': date.isSame(dayjs(), 'day'), 'start-of-month': date.date() === 1 };
+        return { 
+          'today': date.isSame(dayjs(), 'day'), 
+          'start-of-month': date.date() === 1 
+        };
       },
     },
     getDayValueFn: {
@@ -159,6 +155,10 @@ export default defineComponent({
         return date.format('dd')[0];
       },
     },
+    selectionEnabled: {
+      type: Boolean,
+      default: true,
+    }
   },
   created() {
     this.referenceDate = this.startDate;
@@ -210,7 +210,6 @@ export default defineComponent({
 
       const row = target.closest<HTMLElement>('[data-row-id]');
       if (row) {
-        console.log(this.resources, +row.dataset.rowId!);
         this.$emit('row-click', {
           event,
           row: this.resources[+row.dataset.rowId!]
@@ -234,30 +233,30 @@ export default defineComponent({
      * start selection
      */
     onBodyMousedown(event: MouseEvent): void {
-      const target = event.target as HTMLElement;
+
+      if(!this.selectionEnabled) {
+        return;
+      }
+
       const $refs = this.$refs as unknown as Refs;
 
-      // row container !!!
       const rowContainer = $refs.rowContainer;
-      const rect = rowContainer!.getBoundingClientRect();
-      const initial_x = event.clientX - rect.left; //x position within the element.
-      const initial_y = event.clientY - rect.top;  //y position within the element.
 
-      const day = get(this.days, initial_x, c => c.left);
-      const row = get(this.rows, initial_y, c => c.top);
-      console.log(`x:${initial_x},y:${initial_y}`, day[0], row[0]);
-      const dayStart = day[0];
-      const rowStart = row[0];
+      function getXY(event: MouseEvent): { x: number, y: number } {
+        const rect = rowContainer!.getBoundingClientRect();
+        return {
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top,
+        };
+      }
+
+      const { x: initial_x, y: initial_y } = getXY(event);
 
       let resizeTriggered = false;
 
 
       const onMousemove = (event: MouseEvent) => {
-
-        const rect = rowContainer!.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
-
+        const { x, y } = getXY(event);
 
         if (!resizeTriggered) {
           if (Math.abs(x - initial_x) > DRAGGING_TRESHOLD || Math.abs(y - initial_y) > DRAGGING_TRESHOLD) {
@@ -268,73 +267,51 @@ export default defineComponent({
         } else {
           this.selecting = true;
 
-          const day = get(this.days, x, c => c.left);
-          const row = get(this.rows, y, c => c.top);
-
-          const dayEnd = day[0];
-          const rowEnd = row[0] || row[1];
-
-          const left = dayStart.left <= dayEnd.left ? dayStart : dayEnd;
-          const right = dayStart.left <= dayEnd.left ? dayEnd : dayStart;
-          const top = rowStart.top <= rowEnd.top ? rowStart : rowEnd;
-          const bottom = rowStart.top <= rowEnd.top ? rowEnd : rowStart;
+          const leftX = Math.min(initial_x, x);
+          const rightX = Math.max(initial_x, x);
+          const topY = Math.min(initial_y, y);
+          const bottomY = Math.max(initial_y, y);
 
           const selected: any = {};
           const selectedRows: any = {};
           for (const day of this.days) {
-            if (day.left >= left.left && day.left <= right.left) {
+            if (day.left + DAY_WIDTH >= leftX && day.left <= rightX) {
               selected[day.key] = true;
             }
           }
           for (const row of this.rows) {
-            if (row.top >= top.top && row.top <= bottom.top) {
+            if (row.top + ROW_HEIGHT >= topY && row.top <= bottomY) {
               selectedRows[row.resource.id] = true;
             }
           }
 
           this.selected = selected;
           this.selectedRows = selectedRows;
-
-          console.log(selected, selectedRows);
         }
       }
 
       const onMouseup = (event: MouseEvent) => {
-        console.log('mouseup');
         setTimeout(() => {
           this.selecting = false;
-        })
+        });
 
-        const rect = rowContainer!.getBoundingClientRect();
-        const x = event.clientX - rect.left; //x position within the element.
-        const y = event.clientY - rect.top;  //y position within the element.
+        const { x, y } = getXY(event);
 
-        const day = get(this.days, x, c => c.left);
-        const row = get(this.rows, y, c => c.top);
-        console.log(`x:${x},y:${y}`, day[0]);
-
-        const dayEnd = day[0];
-        const rowEnd = row[0] || row[1];
-
-        const left = dayStart.left <= dayEnd.left ? dayStart : dayEnd;
-        const right = dayStart.left <= dayEnd.left ? dayEnd : dayStart;
-        const top = rowStart.top <= rowEnd.top ? rowStart : rowEnd;
-        const bottom = rowStart.top <= rowEnd.top ? rowEnd : rowStart;
+        const leftX = Math.min(initial_x, x);
+        const rightX = Math.max(initial_x, x);
+        const topY = Math.min(initial_y, y);
+        const bottomY = Math.max(initial_y, y);
 
         const dates: Dayjs[] = [];
         const resources: Resource[] = [];
         for (const day of this.days) {
-          if (day.left >= left.left && day.left <= right.left) {
-            if (this.selected[day.key]) {
-              dates.push(day.date);
-            }
+          if (day.left + DAY_WIDTH >= leftX && day.left <= rightX) {
+            dates.push(day.date);
           }
         }
         for (const row of this.rows) {
-          if (row.top >= top.top && row.top <= bottom.top) {
-            if (this.selectedRows[row.resource.id]) {
-              resources.push(row.resource);
-            }
+          if (row.top + ROW_HEIGHT >= topY && row.top <= bottomY) {
+            resources.push(row.resource);
           }
         }
 
@@ -370,12 +347,10 @@ export default defineComponent({
     },
     _checkScrollableThresholdHit(scrollLeft: number, clientWidth: number): void {
       if (scrollLeft - this.referenceScrollLeft < this.scrollableLeftThreshold) {
-        console.debug('left threshold hit');
         this._expandScrollableRange(this.scrollableLeft - SCROLLABLE_RANGE_EXPAND_WIDTH, this.scrollableRight);
       }
 
       if (scrollLeft + clientWidth - this.referenceScrollLeft > this.scrollableRightThreshold) {
-        console.debug('right threshold hit');
         this._expandScrollableRange(this.scrollableLeft, this.scrollableRight + SCROLLABLE_RANGE_EXPAND_WIDTH);
       }
     },
@@ -554,6 +529,7 @@ export default defineComponent({
 
 .side {
   margin-right: 35px;
+  width: 200px;
 }
 
 .row-main {
@@ -572,7 +548,7 @@ export default defineComponent({
   transition: background 0.2s ease-out;
 }
 
-.main-day {
+.day-main {
   flex: 0 0 40px;
   height: 40px;
 
@@ -587,6 +563,7 @@ export default defineComponent({
 }
 
 .range {
+  margin-left: 200px;
   padding: 30px;
   font-size: 24px;
   color: #676565;
@@ -642,12 +619,12 @@ export default defineComponent({
   background-color: rgba(0, 0, 0, 0.04);
 }
 
-.day-content.selected {
+.selected > .day-content {
   background: #87b8e982;
   color: white;
 }
 
-.day-content.selected:hover {
+.selected > .day-content:hover {
   background: #5b99d682;
   color: white;
 }

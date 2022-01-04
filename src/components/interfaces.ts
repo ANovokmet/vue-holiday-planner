@@ -1,6 +1,5 @@
 import { Dayjs } from "dayjs";
 
-
 export interface Day {
     title: string;
     value: number;
