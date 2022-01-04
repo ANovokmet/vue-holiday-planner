@@ -592,6 +592,7 @@ export default defineComponent({
 
 .hp-header-scroller {
   display: flex;
+  flex: 1;
   overflow: hidden;
 }
 
