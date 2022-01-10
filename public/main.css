@@ -9,55 +9,33 @@ body {
     background-color: #FAFBFB;
 }
 
-.day-main {
-    background-color: #F8F7F9;
-}
-
-.weekend {
-    background-color: #E4E3E4;
-}
-
 .orange {
-    background-color: #FF6701;
+    background-color: #FF6701 !important;
     color: white !important;
 }
 
 .orange.weekend {
-    background-color: #F4A682;
+    background-color: #F4A682 !important;
 }
 
-
 .green {
-    background-color: #349967;
+    background-color: #349967 !important;
     color: white !important;
 }
 
 .green.weekend {
-    background-color: #7ccea5;
+    background-color: #7ccea5 !important;
 }
 
 .purple {
-    background-color: #6666CC;
+    background-color: #6666CC !important;
     color: white !important;
 }
 
 .purple.weekend {
-    background-color: #7575d0;
+    background-color: #7575d0 !important;
 }
 
 .today.weekend {
-    background-color: #a1d3ff;
-}
-
-.header-day.today {
-    position: relative;
-}
-
-.header-day.today::after {
-    content: '';
-    height: 30px;
-    width: 30px;
-    position: absolute;
-    border-radius: 50%;
-    border: 2px solid #87b8e9;
+    background-color: #a1d3ff !important;
 }

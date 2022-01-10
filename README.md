@@ -4,7 +4,7 @@ This library consists of of a calendar component - Resource view which displays 
 
 ## Installation
 ```
-npm TBD
+npm install vue-holiday-planner
 ```
 
 ## Usage
@@ -16,9 +16,9 @@ npm TBD
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
-import HolidayPlanner from "./components/HolidayPlanner.vue";
-import dayjs from "dayjs";
+import { defineComponent } from 'vue';
+import { HolidayPlanner } from 'vue-holiday-planner';
+import dayjs from 'dayjs';
 
 export default defineComponent({
   name: "App",

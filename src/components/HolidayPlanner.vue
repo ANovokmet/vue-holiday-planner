@@ -75,7 +75,9 @@
 import { defineComponent, PropType, ref } from 'vue';
 import dayjs, { Dayjs } from 'dayjs';
 import minMax from 'dayjs/plugin/minMax';
-import { clamp, debounce, throttle } from 'lodash';
+import clamp from 'lodash/clamp';
+import debounce from 'lodash/debounce';
+import throttle from 'lodash/throttle';
 import { Day, Resource } from './interfaces';
 import { add_resize_listener } from './resize-listener';
 dayjs.extend(minMax);
@@ -97,7 +99,7 @@ export default defineComponent({
     const scrollHeader = ref<HTMLElement>();
     const rowContainer = ref<HTMLElement>();
     const scrollSide = ref<HTMLElement>();
-
+    
     return {
       scrollBody,
       scrollHeader,
@@ -513,7 +515,7 @@ export default defineComponent({
     rowContainerHeight() {
       return this.rows.length * ROW_HEIGHT;
     },
-    rightScrollbarVisible() {
+    rightScrollbarVisible(): boolean {
       return this.rowContainerHeight > this.visibleHeight;
     }
   },
@@ -535,9 +537,9 @@ export default defineComponent({
       scrollableRight: 1200,
       scrollableLeftThreshold: null as unknown as number,
       scrollableRightThreshold: null as unknown as number,
-
       checkScrollableThresholdHit: debounce(this._checkScrollableThresholdHit.bind(this), 250),
       updateRange: throttle(this._updateRange.bind(this), 250),
+
       selecting: false,
 
       visibleWidth: 0,
@@ -547,11 +549,12 @@ export default defineComponent({
 });
 </script>
 
-<style scoped>
+<style lang="css" scoped>
 .container {
   width: 100%;
   display: flex;
   flex-direction: column;
+  background-color: #fafbfb;
 }
 
 .body {
@@ -563,7 +566,6 @@ export default defineComponent({
 .main-body {
   flex: 1 1 0;
   overflow: auto;
-  background-color: #fafbfb;
 }
 
 .side-body {
@@ -618,12 +620,33 @@ export default defineComponent({
   transition: background 0.2s ease-out;
 }
 
+::v-deep(.header-day.today) {
+    position: relative;
+}
+
+::v-deep(.header-day.today::after) {
+    content: '';
+    height: 30px;
+    width: 30px;
+    position: absolute;
+    border-radius: 50%;
+    border: 2px solid #87b8e9;
+}
+
 .day-main {
   flex: 0 0 40px;
   height: 40px;
 
   cursor: pointer;
   color: #676565;
+}
+
+::v-global(.day-main) {
+  background-color: #F8F7F9;
+}
+
+::v-global(.weekend) {
+    background-color: #E4E3E4;
 }
 
 .row {
