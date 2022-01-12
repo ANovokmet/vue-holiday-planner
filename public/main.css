@@ -39,3 +39,11 @@ body {
 .today.weekend {
     background-color: #a1d3ff !important;
 }
+
+.day-main {
+    background-color: #f8f7f9;
+}
+
+.weekend {
+    background-color: #e4e3e4;
+}

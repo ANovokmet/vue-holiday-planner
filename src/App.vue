@@ -26,7 +26,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import Vue from 'vue';
 import HolidayPlanner from "./components/HolidayPlanner.vue";
 import dayjs from "dayjs";
 
@@ -92,7 +92,7 @@ function generateRows() {
   return rows;
 }
 
-export default defineComponent({
+export default Vue.extend({
   name: "App",
   components: {
     HolidayPlanner,
