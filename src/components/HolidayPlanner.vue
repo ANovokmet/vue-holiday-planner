@@ -650,11 +650,11 @@ export default (Vue as VueConstructor<
   transition: background 0.2s ease-out;
 }
 
-::v-deep(.header-day.today) {
+::v-deep .header-day.today {
   position: relative;
 }
 
-::v-deep(.header-day.today::after) {
+::v-deep .header-day.today::after {
   content: "";
   height: 30px;
   width: 30px;
@@ -671,11 +671,13 @@ export default (Vue as VueConstructor<
   color: #676565;
 }
 
-::v-global(.day-main) {
+/** use v-global in Vue3 */
+::v-deep .day-main {
   background-color: #f8f7f9;
 }
 
-::v-global(.weekend) {
+/** use v-global in Vue3 */
+::v-deep .weekend {
   background-color: #e4e3e4;
 }
 

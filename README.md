@@ -16,11 +16,11 @@ npm install vue-holiday-planner
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
+import Vue from 'vue';
 import { HolidayPlanner } from 'vue-holiday-planner';
 import dayjs from 'dayjs';
 
-export default defineComponent({
+export default Vue.extend({
   name: "App",
   components: {
     HolidayPlanner,
