@@ -172,7 +172,7 @@ Example:
 </template>
 ```
 
- - `Custom title template`
+ - `title` - Custom title template
 
 Example:
 
