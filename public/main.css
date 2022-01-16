@@ -47,3 +47,23 @@ body {
 .weekend {
     background-color: #e4e3e4;
 }
+
+.circle {
+    position: relative;
+}
+
+.circle::after {
+    content: "";
+    height: 30px;
+    width: 30px;
+    position: absolute;
+    border-radius: 50%;
+    border: 2px solid;
+}
+
+.circle-blue::after {
+    border-color: #87b8e9;
+}
+.circle-orange::after {
+    border-color: #F4A682;
+}

@@ -10,10 +10,23 @@ export interface Day {
     left: number;
 }
 
+export interface ResourceDay {
+    date?: Dayjs; 
+    startDate?: Dayjs;
+    endDate?: Dayjs;
+    class: string | string[];
+}
+
 export interface Resource {
     id: number;
     title: string;
     subtitle?: string;
     img?: string;
-    days: { date: Dayjs; class: string | string[]; }[];
+    days: ResourceDay[];
+}
+
+export interface CustomDay {
+    date: Dayjs; 
+    class: string | string[];
+    headerClass: string | string[];
 }

@@ -37,6 +37,11 @@ export default Vue.extend({
                 {
                     date: dayjs(),
                     class: 'orange',
+                },
+                {
+                    startDate: dayjs(),
+                    endDate: dayjs().add(3, 'day'),
+                    class: 'purple',
                 }
             ],
         }
@@ -55,7 +60,9 @@ export default Vue.extend({
     - `subtitle`
     - `img` - Href of image displayed in the default row header template
     - `days` - Array of dates highlighted in the calendar for this resource
-        - `date` {DayJs}
+        - `date` {DayJs} - Highlighted date
+        - `startDate` {DayJs} - Optional, if date is null, use as start of the interval of selected dates
+        - `endDate` {DayJs} - Optional, if date is null, use as end of the interval of selected dates
         - `class` string|string[]
 
 ```js
@@ -64,7 +71,7 @@ export default Vue.extend({
      * Rows to display
      */
     resources: {
-      type: Array,
+      type: Array as PropType<Resource[]>,
       required: true,
     },
     /**
@@ -86,10 +93,10 @@ export default Vue.extend({
       type: Boolean,
       default: true,
     },
-    /** map of custom day classes to apply to dates, eg. {'DDMMYYYY': { class: 'class name' }} */
+    /** custom day classes to apply every row of the date, eg. national holidays */
     customDays: {
-      type: Object,
-      default: () => ({}),
+      type: Array as PropType<CustomDay[]>,
+      default: () => ([]),
     },
     /** 
      * Function to generate classes of body days
@@ -144,7 +151,14 @@ Most are self-explanatory
  - `@header-click` - Emits when a date is clicked in the header.
  - `@row-click`
  - `@day-click`
+    - `date` {DayJs}
+    - `event`
+    - `row`
+    - `model` - If clicked on a highlighted date, returns the input model of the day
  - `@selection-end`
+    - `dates` {DayJs[]} - Array of selected dates
+    - `resources` - Array of selected resource input models
+    - `event`
 
 ### Slots
 

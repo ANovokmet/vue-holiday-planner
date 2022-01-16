@@ -2,7 +2,7 @@
   <HolidayPlanner
     :resources="rows"
     :infiniteScroll="true"
-    :customDays="{'01022022': { class: 'orange' }}"
+    :customDays="customDays"
     @header-click="onHeaderClick"
     @row-click="onRowClick"
     @day-click="onDayClick"
@@ -78,13 +78,11 @@ function generateRows() {
       const classes = colors[j % 3];
 
       let date = randomDate();
-      for (let k = 0; k < duration; k++) {
-        days.push({
-          date: date,
-          class: classes,
-        });
-        date = date.add(1, "day");
-      }
+      days.push({
+        startDate: date,
+        endDate: date.add(duration, 'day'),
+        class: classes,
+      });
     }
     row.days = days;
     rows.push(row);
@@ -114,6 +112,13 @@ export default Vue.extend({
   data() {
     return {
       rows: generateRows(),
+      customDays: [
+        {
+          date: dayjs('2022-02-01'),
+          headerClass: 'circle circle-orange',
+          class: 'orange'
+        }
+      ]
     };
   },
 });

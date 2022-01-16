@@ -82,7 +82,7 @@ import minMax from 'dayjs/plugin/minMax';
 import clamp from 'lodash/clamp';
 import debounce from 'lodash/debounce';
 import throttle from 'lodash/throttle';
-import { Day, Resource } from './interfaces';
+import { CustomDay, Day, Resource, ResourceDay } from './interfaces';
 import { add_resize_listener } from './resize-listener';
 dayjs.extend(minMax);
 
@@ -96,6 +96,12 @@ interface Row {
   resource: Resource;
   top: number;
 }
+
+interface DayData {
+  model: ResourceDay;
+  classes: string;
+}
+type RowData = Record<any, Record<string, DayData>>;
 
 export default (Vue as VueConstructor<
   Vue & {
@@ -138,10 +144,10 @@ export default (Vue as VueConstructor<
       type: Boolean,
       default: true,
     },
-    /** map of custom day classes to apply to dates, eg. {'DDMMYYYY': { class: 'class name' }} */
+    /** custom day classes to apply every row of the date */
     customDays: {
-      type: Object as PropType<{ [key: string]: { class: string } }>,
-      default: () => ({}),
+      type: Array as PropType<CustomDay[]>,
+      default: () => ([]),
     },
     /** 
      * Function to generate classes of body days
@@ -221,17 +227,38 @@ export default (Vue as VueConstructor<
     // TODO:: move to computed when solution to performance is found
     computeClasses() {
       const value = this.resources;
-      const _classes: { [rowId: number]: any } = {};
+      const _data: { [rowId: number]: any } = {};
       for (const row of value) {
-        _classes[row.id] = {};
+        _data[row.id] = {};
         if (row.days) {
           for (const day of row.days) {
-            const key = this.getKey(day.date);
-            _classes[row.id][key] = day.class;
+            if(day.date) {
+              const key = this.getKey(day.date);
+              _data[row.id][key] = {
+                model: day,
+                classes: day.class
+              };
+            } else if(day.startDate && day.endDate) {
+              let date = day.startDate;
+              if(day.endDate < day.startDate) {
+                console.error('endDate is before startDate');
+                continue;
+              }
+              while(date < day.endDate) {
+                const key = this.getKey(date);
+                _data[row.id][key] = {
+                  model: day,
+                  classes: day.class
+                }
+                date = date.add(1, 'day');
+              }
+            } else {
+              console.warn('Day without date', day); 
+            }
           }
         }
       }
-      this.classes = _classes;
+      this.rowData = _data;
     },
 
     onBodyScroll(event: Event): void {
@@ -268,12 +295,19 @@ export default (Vue as VueConstructor<
         });
       }
 
-      const day = target.closest<HTMLElement>('[data-day-id]');
-      if (day) {
+      const dayElement = target.closest<HTMLElement>('[data-day-id]');
+      if (dayElement) {
+        const day = dayElement && this.days[+dayElement.dataset.dayId!];
+        let model;
+        if(row && day) {
+          const data = this.rowData[+row.dataset.rowId!][day.key];
+          model = data && data.model;
+        }
         this.$emit('day-click', {
           event,
           row: row && this.resources[+row.dataset.rowId!],
-          date: day && this.days[+day.dataset.dayId!].date
+          date: day.date,
+          model: model
         });
       }
 
@@ -447,7 +481,7 @@ export default (Vue as VueConstructor<
           value: this.getDayValueFn(current),
           key,
           date: current,
-          headerClass: this.getHeaderClassFn(current),
+          headerClass: this._getDateHeaderClass(current),
           class: this._getDateClass(current),
           left
         };
@@ -458,12 +492,29 @@ export default (Vue as VueConstructor<
       }
     },
 
+    _getDateHeaderClass(date: Dayjs) {
+      const classes = [];
+      classes.push(this.getHeaderClassFn(date));
+      
+      const key = this.getKey(date);
+      const customDay = this.customDayRecords[key];
+      if(customDay) {
+        classes.push(customDay.headerClass);
+      }
+
+      return classes;
+    },
+
     _getDateClass(date: Dayjs): string {
       const classes: string[] = [];
       const key = this.getKey(date);
-      const customDay = this.customDays[key];
+      const customDay = this.customDayRecords[key];
       if (customDay) {
-        classes.push(customDay.class);
+        if(Array.isArray(customDay.class)) {
+          classes.push(...customDay.class);
+        } else {
+          classes.push(customDay.class);
+        }
       }
 
       if (this.getClassFn) {
@@ -491,11 +542,11 @@ export default (Vue as VueConstructor<
     },
 
     getKey(value: Dayjs): string {
-      return value.format('DDMMYYYY');
+      return value.format('YYYY-MM-DD');
     },
 
     _getDateClasses(row: Resource, day: Day): any {
-      return  (day.class ? ' ' + day.class : '') + (this.classes[row.id] && this.classes[row.id][day.key] || '');
+      return  (day.class ? day.class + ' ' : '') + (this.rowData[row.id] && this.rowData[row.id][day.key] && this.rowData[row.id][day.key].classes || '');
     }
 
   },
@@ -505,25 +556,13 @@ export default (Vue as VueConstructor<
     }
   },
   computed: {
+
     dateFormat() {
       return (date: Dayjs, format: string) => {
         return date.format(format);
       };
     },
-    // classes() {
-    //   const value = this.resources as Resource[];
-    //   const _classes: { [rowId: number]: any } = {};
-    //   for (const row of value) {
-    //     _classes[row.id] = {};
-    //     if (row.days) {
-    //       for (const day of row.days) {
-    //         const key = this.getKey(day.date);
-    //         _classes[row.id][key] = day.class;
-    //       }
-    //     }
-    //   }
-    //   return _classes;
-    // },
+    
     rows(): Row[] {
       const resources = this.resources as Resource[];
       const _rows: Row[] = [];
@@ -537,12 +576,24 @@ export default (Vue as VueConstructor<
       }
       return _rows;
     },
+
     rowContainerHeight(): number {
       return this.rows.length * ROW_HEIGHT;
     },
+
     rightScrollbarVisible(): boolean {
       return this.rowContainerHeight > this.visibleHeight;
+    },
+
+    customDayRecords(): Record<string, CustomDay> {
+      const customDays: Record<string, CustomDay> = {};
+      for (const day of this.customDays) {
+        const key = this.getKey(day.date);
+        customDays[key] = day;
+      }
+      return customDays;
     }
+
   },
   data() {
     return {
@@ -550,7 +601,7 @@ export default (Vue as VueConstructor<
       from: null as any,
       to: null as any,
 
-      classes: {} as any,
+      rowData: {} as RowData,
       selected: {} as { [key: string]: boolean },
       selectedRows: {} as { [key: string]: boolean },
 
