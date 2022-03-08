@@ -1,13 +1,13 @@
 <template>
-  <div class="container">
-    <div class="header">
+  <div class="hp-container">
+    <div class="hp-header" v-if="enableHeader">
       <slot name="title" :from="from" :to="to">
         <div class="range" v-if="from != null && to != null">
           {{ dateFormat(from, "MMM YYYY") }} ― {{ dateFormat(to, "MMM YYYY") }}
         </div>
       </slot>
     </div>
-    <div class="header">
+    <div class="hp-header">
       <div class="side-header side"></div>
       <div
         class="main-header"
@@ -15,22 +15,35 @@
         :class="{ 'hp-right-scrollbar-visible': rightScrollbarVisible }"
       >
         <div class="hp-header-scroller" ref="scrollHeader">
-          <div
-            v-for="(item, index) in days"
-            class="header-day"
-            :key="index"
-            :class="item.headerClass"
-            :data-day-id="index"
-          >
-            {{ item.title }}
+          <div class="hp-header-row">
+            <div
+              v-for="(item, index) in months"
+              class="header-month"
+              :key="index"
+              :style="{ 'flex-basis': item.width + 'px' }"
+              :data-month-id="index"
+            >
+              <div class="hp-month-label">{{ item.title }}</div>
+            </div>
+          </div>
+          <div class="hp-header-row">
+            <div
+              v-for="(item, index) in days"
+              class="header-day"
+              :key="index"
+              :class="item.headerClass"
+              :data-day-id="index"
+            >
+              {{ item.title }}
+            </div>
           </div>
         </div>
       </div>
     </div>
-    <div class="body">
+    <div class="hp-body">
       <div class="side-body side hp-bottom-scrollbar-visible">
         <div class="hp-side-scroller" ref="scrollSide">
-          <div v-for="row in resources" :key="row.id" class="row row-side card">
+          <div v-for="row in resources" :key="row.id" class="hp-row row-side hp-card">
             <slot name="row-header" :row="row">
               <img class="avatar" :src="row.img" />
               <div class="card-content">
@@ -51,7 +64,7 @@
           <div
             v-for="row in resources"
             :key="row.id"
-            class="row row-main"
+            class="hp-row row-main"
             :data-row-id="row.id"
           >
             <div
@@ -102,6 +115,11 @@ interface DayData {
   classes: string;
 }
 type RowData = Record<any, Record<string, DayData>>;
+
+interface Month {
+  title: string;
+  width: number;
+}
 
 export default (Vue as VueConstructor<
   Vue & {
@@ -156,9 +174,16 @@ export default (Vue as VueConstructor<
       type: Function as PropType<(date: Dayjs) => string|string[]>,
       default: ((date: Dayjs) => {
         const d = date.day();
+        const klass = [];
         if (d === 6 || d === 0) {
-          return 'weekend';
+          klass.push('weekend');
         }
+
+        if(date.isSame(dayjs(), 'day')) {
+          klass.push('today');
+        }
+
+        return klass;
       }) as any
     },
     /**
@@ -191,6 +216,11 @@ export default (Vue as VueConstructor<
     selectionEnabled: {
       type: Boolean,
       default: true,
+    },
+    /** enable MMM YYYY - MMM YYYY header */
+    enableHeader: {
+      type: Boolean,
+      default: false,
     }
   },
   created() {
@@ -204,6 +234,7 @@ export default (Vue as VueConstructor<
   },
   mounted() {
     this.createDays();
+    this.createMonths();
 
     const { scrollLeft, clientWidth } = this.$refs.scrollBody!;
     this._updateRange(scrollLeft, scrollLeft + clientWidth);
@@ -218,7 +249,7 @@ export default (Vue as VueConstructor<
     });
 
     setTimeout(() => {
-      this.centerOn(this.startDate, 'auto');
+      this.scrollLeftTo(this.startDate, 'auto');
     });
 
     this.computeClasses();
@@ -421,6 +452,14 @@ export default (Vue as VueConstructor<
       });
     },
 
+    scrollLeftTo(date: Dayjs, behavior: 'smooth' | 'auto' | undefined = 'smooth'): void {
+      const left = this.dateToPosition(date);
+      this.$refs.scrollBody!.scrollTo({
+        left: left,
+        behavior
+      });
+    },
+
     positionToDate(x: number): Dayjs {
       const numDays = Math.floor(x / DAY_WIDTH);
       return this.referenceDate!.add(numDays, 'day');
@@ -461,6 +500,7 @@ export default (Vue as VueConstructor<
       this.$refs.scrollHeader!.scrollLeft = this.$refs.scrollBody!.scrollLeft;
 
       this.createDays();
+      this.createMonths();
 
       this.referenceScrollLeft = this.dateToPosition(this.referenceDate!);
     },
@@ -489,6 +529,26 @@ export default (Vue as VueConstructor<
         this.days.push(day);
         left += DAY_WIDTH;
         current = current.add(1, 'day');
+      }
+    },
+
+    createMonths() {
+      let current = this.scrollableFrom!;
+      this.months = [];
+      while (current < this.scrollableTo!) {
+
+        const start = dayjs.max(current.startOf('month'), this.scrollableFrom!);
+        const end = dayjs.min(current.endOf('month'), this.scrollableTo!);
+        const numDays = end.diff(start, 'day');
+
+        const month = {
+          title: start.format('MMM YYYY'),
+          date: current,
+          width: (numDays + 1) * DAY_WIDTH
+        };
+
+        this.months.push(month);
+        current = end.add(1, 'day');
       }
     },
 
@@ -597,6 +657,7 @@ export default (Vue as VueConstructor<
   },
   data() {
     return {
+      months: [] as Month[],
       days: [] as Day[],
       from: null as any,
       to: null as any,
@@ -631,14 +692,19 @@ export default (Vue as VueConstructor<
 </script>
 
 <style lang="css" scoped>
-.container {
+
+* {
+  box-sizing: border-box;
+}
+
+.hp-container {
   width: 100%;
   display: flex;
   flex-direction: column;
   background-color: #fafbfb;
 }
 
-.body {
+.hp-body {
   display: flex;
   flex-grow: 1;
   overflow: auto;
@@ -662,7 +728,7 @@ export default (Vue as VueConstructor<
   overflow: hidden;
 }
 
-.header {
+.hp-header {
   display: flex;
 }
 
@@ -670,13 +736,18 @@ export default (Vue as VueConstructor<
   display: flex;
   flex: 1 1 0;
   overflow: hidden;
-  height: 40px;
+  /* height: 80px; */
 }
 
 .hp-header-scroller {
   display: flex;
+  flex-direction: column;
   flex: 1;
   overflow: hidden;
+}
+.hp-header-row {
+  display: flex;
+  flex: 1;
 }
 
 .hp-right-scrollbar-visible {
@@ -690,7 +761,7 @@ export default (Vue as VueConstructor<
 
 .header-day {
   flex: 0 0 40px;
-
+  height: 40px;
   cursor: pointer;
   color: #cc6799;
   font-weight: 500;
@@ -714,6 +785,11 @@ export default (Vue as VueConstructor<
   border: 2px solid #87b8e9;
 }
 
+/** use v-global in Vue3 */
+.day-main.today {
+  border: 2px solid #87b8e9;
+}
+
 .day-main {
   flex: 0 0 40px;
   height: 40px;
@@ -732,7 +808,7 @@ export default (Vue as VueConstructor<
   background-color: #e4e3e4;
 }
 
-.row {
+.hp-row {
   height: 70px;
   display: flex;
   align-items: center;
@@ -746,27 +822,43 @@ export default (Vue as VueConstructor<
 }
 
 .start-of-month {
+  border-left: 3px solid #cc6799;
 }
 
-.card .avatar {
+.header-month {
+  display: flex;
+  flex-grow: 0;
+  flex-shrink: 0;
+}
+
+.hp-month-label {
+  position: sticky;
+  left: 39px;
+  z-index: 1;
+  padding: 30px 30px 30px 10px;
+  font-size: 24px;
+  color: #676565;
+}
+
+.hp-card .avatar {
   height: 56px;
   width: 56px;
   border-radius: 50%;
   margin-right: 20px;
 }
 
-.card .title {
+.hp-card .title {
   margin-bottom: 4px;
   font-weight: 500;
   color: #333333;
 }
 
-.card .subtitle {
+.hp-card .subtitle {
   color: #8c8c8c;
 }
 
-.card .title,
-.card .subtitle {
+.hp-card .title,
+.hp-card .subtitle {
   font-size: 16px;
   white-space: nowrap;
   overflow: hidden;

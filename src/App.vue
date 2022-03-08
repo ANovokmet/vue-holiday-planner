@@ -3,6 +3,7 @@
     :resources="rows"
     :infiniteScroll="true"
     :customDays="customDays"
+    :startDate="startDate"
     @header-click="onHeaderClick"
     @row-click="onRowClick"
     @day-click="onDayClick"
@@ -28,7 +29,9 @@
 <script lang="ts">
 import Vue from 'vue';
 import HolidayPlanner from "./components/HolidayPlanner.vue";
-import dayjs from "dayjs";
+import dayjs from 'dayjs';
+import isoWeek from 'dayjs/plugin/isoWeek';
+dayjs.extend(isoWeek);
 
 function generateRows() {
   const startOfYear = dayjs().startOf("year");
@@ -118,7 +121,8 @@ export default Vue.extend({
           headerClass: 'circle circle-orange',
           class: 'orange'
         }
-      ]
+      ],
+      startDate: dayjs().startOf('isoWeek'),
     };
   },
 });
