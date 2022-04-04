@@ -64,6 +64,7 @@ export default Vue.extend({
         - `startDate` {DayJs} - Optional, if date is null, use as start of the interval of selected dates
         - `endDate` {DayJs} - Optional, if date is null, use as end of the interval of selected dates
         - `class` string|string[]
+        - `style` {Object} - Optional, CSS styles to apply to day, eg. `style: { backgroundColor: "#3f51b5", color: "white" }`
 
 ```js
 {

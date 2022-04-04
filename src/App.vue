@@ -85,6 +85,10 @@ function generateRows() {
         startDate: date,
         endDate: date.add(duration, 'day'),
         class: classes,
+        style: {
+          backgroundColor: "#3f51b5",
+          color: "white",
+        },
       });
     }
     row.days = days;

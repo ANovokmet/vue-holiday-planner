@@ -75,6 +75,7 @@
                 _getDateClasses(row, item),
                 { selected: selected[item.key] && selectedRows[row.id] },
               ]"
+              :style="_getDateStyle(row, item)"
               :data-day-id="index"
             >
               <div class="day-content">
@@ -606,8 +607,12 @@ export default (Vue as VueConstructor<
     },
 
     _getDateClasses(row: Resource, day: Day): any {
-      return  (day.class ? day.class + ' ' : '') + (this.rowData[row.id] && this.rowData[row.id][day.key] && this.rowData[row.id][day.key].classes || '');
-    }
+      return (day.class ? day.class + ' ' : '') + (this.rowData[row.id] && this.rowData[row.id][day.key] && this.rowData[row.id][day.key].classes || '');
+    },
+
+    _getDateStyle(row: Resource, day: Day): any {
+      return this.rowData[row.id] && this.rowData[row.id][day.key] && this.rowData[row.id][day.key].model.style;
+    },
 
   },
   watch: {

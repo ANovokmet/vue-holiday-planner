@@ -15,6 +15,7 @@ export interface ResourceDay {
     startDate?: Dayjs;
     endDate?: Dayjs;
     class: string | string[];
+    style: any;
 }
 
 export interface Resource {
