@@ -275,7 +275,7 @@ export default (Vue as VueConstructor<
                 console.error('endDate is before startDate');
                 continue;
               }
-              while(date < day.endDate) {
+              while(date <= day.endDate) {
                 const key = this.getKey(date);
                 _data[row.id][key] = {
                   model: day,
