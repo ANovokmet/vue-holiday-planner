@@ -123,7 +123,7 @@ export default Vue.extend({
         {
           date: dayjs('2022-02-01'),
           headerClass: 'circle circle-orange',
-          class: 'orange'
+          class: 'public-holiday'
         }
       ],
       startDate: dayjs().startOf('isoWeek'),

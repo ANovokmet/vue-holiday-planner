@@ -3,7 +3,7 @@
     <div class="hp-header" v-if="enableHeader">
       <slot name="title" :from="from" :to="to">
         <div class="range" v-if="from != null && to != null">
-          {{ dateFormat(from, "MMM YYYY") }} ― {{ dateFormat(to, "MMM YYYY") }}
+          {{ dateFormat(from, "MMMM YYYY") }} ― {{ dateFormat(to, "MMMM YYYY") }}
         </div>
       </slot>
     </div>
@@ -43,7 +43,7 @@
     <div class="hp-body">
       <div class="side-body side hp-bottom-scrollbar-visible">
         <div class="hp-side-scroller" ref="scrollSide">
-          <div v-for="row in resources" :key="row.id" class="hp-row row-side hp-card">
+          <div v-for="row in resources" :key="row.id" class="hp-row row-side hp-card" :style="{'height': rowHeight + 'px' }">
             <slot name="row-header" :row="row">
               <img class="avatar" :src="row.img" />
               <div class="card-content">
@@ -60,13 +60,20 @@
         @click="onBodyClick"
         @mousedown="onBodyMousedown"
       >
-        <div ref="rowContainer">
+        <div ref="rowContainer" :style="{ 'width': days.length * 40 + 'px' }" style="overflow: hidden;position: relative;">
           <div
             v-for="row in resources"
             :key="row.id"
             class="hp-row row-main"
-            :data-row-id="row.id"
-          >
+            :data-row-id="row.id" 
+            :style="{'height': rowHeight + 'px' }"
+          > 
+            <div v-for="(item, index) in row.days"
+              :key="'interval-'+index"
+              class="hp-interval"
+              :style="_getIntervalStyle(item)"
+              :class="_getIntervalClass(item)">
+            </div> 
             <div
               v-for="(item, index) in days"
               :key="index"
@@ -75,7 +82,6 @@
                 _getDateClasses(row, item),
                 { selected: selected[item.key] && selectedRows[row.id] },
               ]"
-              :style="_getDateStyle(row, item)"
               :data-day-id="index"
             >
               <div class="day-content">
@@ -101,8 +107,7 @@ import { add_resize_listener } from './resize-listener';
 dayjs.extend(minMax);
 
 const DAY_WIDTH = 40;
-const ROW_HEIGHT = 70;
-const SCROLLABLE_THRESHOLD_DELTA = 200;
+const SCROLLABLE_THRESHOLD_DELTA = 400;
 const SCROLLABLE_RANGE_EXPAND_WIDTH = 400;
 const DRAGGING_TRESHOLD = 5;
 
@@ -148,6 +153,11 @@ export default (Vue as VueConstructor<
       type: Object as PropType<Dayjs>,
       default: () => dayjs().startOf('day'),
     },
+    /** Reference date where the scrolling starts from */
+    referenceDate: {
+      type: Object as PropType<Dayjs>,
+      default: () => dayjs().startOf('day'),
+    },
     /** if infinite scroll is disabled, this is max scrollable date */
     maxDate: {
       type: Object as PropType<Dayjs>,
@@ -184,6 +194,10 @@ export default (Vue as VueConstructor<
           klass.push('today');
         }
 
+        if(date.date() === 1) {
+          klass.push('start-of-month');
+        }
+
         return klass;
       }) as any
     },
@@ -195,7 +209,8 @@ export default (Vue as VueConstructor<
       default: ((date: Dayjs) => {
         return {
           'today': date.isSame(dayjs(), 'day'),
-          'start-of-month': date.date() === 1
+          'start-of-month': date.date() === 1,
+          'weekend': date.day() === 6 || date.day() === 0,
         };
       }) as any
     },
@@ -210,7 +225,7 @@ export default (Vue as VueConstructor<
     getDayHeaderFn: {
       type: Function as PropType<(date: Dayjs) => any>,
       default: ((date: Dayjs) => {
-        return date.format('dd')[0];
+        return date.format('dd');
       }) as any
     },
     /** enable selection of dates */
@@ -222,15 +237,18 @@ export default (Vue as VueConstructor<
     enableHeader: {
       type: Boolean,
       default: false,
+    },
+    rowHeight: {
+      type: Number,
+      default: 50
     }
   },
   created() {
-    this.referenceDate = this.startDate;
     this.scrollableFrom = this.positionToDate(this.scrollableLeft);
     this.scrollableTo = this.positionToDate(this.scrollableRight);
 
-    this.checkScrollableThresholdHit = debounce(this._checkScrollableThresholdHit.bind(this), 250);
-    this.updateRange = throttle(this._updateRange.bind(this), 250);
+    this.checkScrollableThresholdHit = debounce(this._checkScrollableThresholdHit.bind(this), 100);
+    this.updateRange = throttle(this._updateRange.bind(this), 100);
     
   },
   mounted() {
@@ -251,11 +269,33 @@ export default (Vue as VueConstructor<
 
     setTimeout(() => {
       this.scrollLeftTo(this.startDate, 'auto');
+      const { scrollLeft, clientWidth } = this.$refs.scrollBody!;
+      this.checkScrollableThresholdHit(scrollLeft, clientWidth);
+      this.updateRange(scrollLeft, scrollLeft + clientWidth);
     });
 
     this.computeClasses();
   },
   methods: {
+
+    _getIntervalStyle(day: ResourceDay) {
+      const style = Object.assign({}, day.style);
+
+      if(day.startDate && day.endDate) {
+        const left = this.dateToPosition(day.startDate!);
+        const right = this.dateToPosition(day.endDate!);
+
+        style.left = `${left}px`;
+        style.width = `${right - left + DAY_WIDTH}px`;
+      }
+
+      return style;
+    },
+
+    _getIntervalClass(day: ResourceDay) {
+      return day.class;
+    },  
+
     // TODO:: move to computed when solution to performance is found
     computeClasses() {
       const value = this.resources;
@@ -395,7 +435,7 @@ export default (Vue as VueConstructor<
             }
           }
           for (const row of this.rows) {
-            if (row.top + ROW_HEIGHT >= topY && row.top <= bottomY) {
+            if (row.top + this.rowHeight >= topY && row.top <= bottomY) {
               selectedRows[row.resource.id] = true;
             }
           }
@@ -425,7 +465,7 @@ export default (Vue as VueConstructor<
           }
         }
         for (const row of this.rows) {
-          if (row.top + ROW_HEIGHT >= topY && row.top <= bottomY) {
+          if (row.top + this.rowHeight >= topY && row.top <= bottomY) {
             resources.push(row.resource);
           }
         }
@@ -469,7 +509,11 @@ export default (Vue as VueConstructor<
     dateToPosition(date: Dayjs): number {
       const diff = date.diff(this.scrollableFrom, 'day');
       const ix = clamp(diff, 0, this.days.length - 1);
-      return this.days[ix].left;
+      if(!this.days[ix]) {
+        return 0;
+      }
+      return diff * DAY_WIDTH;
+      // return this.days[ix].left;
     },
 
     _checkScrollableThresholdHit(scrollLeft: number, clientWidth: number): void {
@@ -637,13 +681,13 @@ export default (Vue as VueConstructor<
           resource,
           top
         });
-        top += ROW_HEIGHT;
+        top += this.rowHeight;
       }
       return _rows;
     },
 
     rowContainerHeight(): number {
-      return this.rows.length * ROW_HEIGHT;
+      return this.rows.length * this.rowHeight;
     },
 
     rightScrollbarVisible(): boolean {
@@ -672,7 +716,6 @@ export default (Vue as VueConstructor<
       selectedRows: {} as { [key: string]: boolean },
 
       today: dayjs(),
-      referenceDate: null as Dayjs | null,
       referenceScrollLeft: 0,
       scrollableFrom: null as Dayjs | null,
       scrollableTo: null as Dayjs | null,
@@ -768,7 +811,7 @@ export default (Vue as VueConstructor<
   flex: 0 0 40px;
   height: 40px;
   cursor: pointer;
-  color: #cc6799;
+  color: #000;
   font-weight: 500;
 
   display: flex;
@@ -792,12 +835,17 @@ export default (Vue as VueConstructor<
 
 /** use v-global in Vue3 */
 .day-main.today {
-  border: 2px solid #87b8e9;
+  border: 1px solid rgb(0 0 0 / 10%);
+  height: 30px;
+  border-radius: 20px;
+  background-color: rgb(225 225 225 / 33%);
+  color: black;
+  font-weight: bold;
 }
 
 .day-main {
   flex: 0 0 40px;
-  height: 40px;
+  height: 30px;
 
   cursor: pointer;
   color: #676565;
@@ -805,16 +853,16 @@ export default (Vue as VueConstructor<
 
 /** use v-global in Vue3 */
 ::v-deep .day-main {
-  background-color: #f8f7f9;
+  /* background-color: #f8f7f9; */
+  z-index: 1;
 }
 
 /** use v-global in Vue3 */
 ::v-deep .weekend {
-  background-color: #e4e3e4;
+  /* background-color: #e4e3e4; */
 }
 
 .hp-row {
-  height: 70px;
   display: flex;
   align-items: center;
 }
@@ -827,7 +875,8 @@ export default (Vue as VueConstructor<
 }
 
 .start-of-month {
-  border-left: 3px solid #cc6799;
+  /* border-left: 3px solid #cc6799; */
+  position: relative;
 }
 
 .header-month {
@@ -900,5 +949,13 @@ export default (Vue as VueConstructor<
 .selected > .day-content:hover {
   background: #5b99d682;
   color: white;
+}
+
+.hp-interval {
+  position: absolute;
+  height: 30px;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  z-index: 0;
 }
 </style>
