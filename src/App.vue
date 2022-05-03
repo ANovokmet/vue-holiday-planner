@@ -39,7 +39,7 @@ function generateRows() {
     return startOfYear.add(Math.floor(Math.random() * 365), "day");
   }
 
-  const colors = ["orange", "green", "purple"];
+  const colors = ['toovoimetus', 'kodukontor', 'puhkus', 'lahetus', 'koolitused', 'kontor'];
   const templateRows: any[] = [
     {
       title: "Krystalle Logie",
@@ -78,17 +78,17 @@ function generateRows() {
     const days = [];
     for (let j = 0; j < 24; j++) {
       const duration = Math.floor(Math.random() * 5);
-      const classes = colors[j % 3];
+      const classes = colors[j % colors.length];
 
       let date = randomDate();
       days.push({
         startDate: date,
         endDate: date.add(duration, 'day'),
         class: classes,
-        style: {
-          backgroundColor: "#3f51b5",
-          color: "white",
-        },
+        // style: {
+        //   backgroundColor: "#3f51b5",
+        //   color: "white",
+        // },
       });
     }
     row.days = days;
@@ -122,11 +122,11 @@ export default Vue.extend({
       customDays: [
         {
           date: dayjs('2022-02-01'),
-          headerClass: 'circle circle-orange',
+          // headerClass: 'circle circle-orange', // 
           class: 'public-holiday'
         }
       ],
-      startDate: dayjs().startOf('isoWeek'),
+      startDate: dayjs('2022-02-01')//dayjs().startOf('isoWeek'),
     };
   },
 });

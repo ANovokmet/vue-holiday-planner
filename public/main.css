@@ -9,6 +9,41 @@ body {
     background-color: #FAFBFB;
 }
 
+.toovoimetus.hp-interval {
+    background: #9FACD8;
+}
+
+.kodukontor.hp-interval {
+    background: #FFCE20;
+}
+
+.puhkus.hp-interval {
+    background: #EB7778;
+}
+
+.lahetus.hp-interval {
+    background: #70CA44;
+}
+
+.koolitused.hp-interval {
+    background: #22C1E3;
+}
+
+.kontor.hp-interval {
+    background: #688AFF; 
+}
+
+
+.toovoimetus,
+.kodukontor,
+.puhkus,
+.lahetus,
+.koolitused,
+.konto {
+    color: white !important;
+}
+
+
 .orange.hp-interval {
     background-color: #FF6701 !important;
 }
@@ -70,8 +105,8 @@ body {
 .public-holiday {
   height: 30px;
   border-radius: 20px;    
-  color: #CB4141 !important;
-  background-color: rgb(255 0 0 / 10%);
+  color: #C52828 !important;
+  background-color: rgba(255, 209, 210, 0.25);;
   color: black;
   font-weight: bold;
 }
