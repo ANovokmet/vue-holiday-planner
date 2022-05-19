@@ -98,6 +98,11 @@
               :style="_getIntervalStyle(item)"
               :class="_getIntervalClass(item)">
             </div> 
+            <div v-if="selectedRows[row.id]"
+              class="hp-interval hp-selection"
+              :style="_getSelectionStyle()">
+
+            </div>
             <div
               v-for="(item, index) in days"
               :key="index"
@@ -320,6 +325,20 @@ export default (Vue as VueConstructor<
       return style;
     },
 
+    _getSelectionStyle() {
+      const style: any = {};
+
+      if(this.selectionStartDate && this.selectionEndDate) {
+        const left = this.dateToPosition(this.selectionStartDate!);
+        const right = this.dateToPosition(this.selectionEndDate!);
+
+        style.left = `${left}px`;
+        style.width = `${right - left + DAY_WIDTH}px`;
+      }
+
+      return style;
+    },
+
     _getIntervalClass(day: ResourceDay) {
       return day.class;
     },  
@@ -482,9 +501,20 @@ export default (Vue as VueConstructor<
 
           const selected: any = {};
           const selectedRows: any = {};
+          let startDate: Dayjs | null = null;
+          let endDate: Dayjs | null = null;
           for (const day of this.days) {
             if (day.left + DAY_WIDTH >= leftX && day.left <= rightX) {
               selected[day.key] = true;
+
+              if(!startDate || day.date <= startDate) {
+                startDate = day.date;
+              }
+
+              if(!endDate || day.date >= endDate) {
+                endDate = day.date;
+              }
+
             }
           }
           for (const row of this.rows) {
@@ -492,7 +522,8 @@ export default (Vue as VueConstructor<
               selectedRows[row.resource.id] = true;
             }
           }
-
+          this.selectionStartDate = startDate;
+          this.selectionEndDate = endDate;
           this.selected = selected;
           this.selectedRows = selectedRows;
         }
@@ -795,7 +826,10 @@ export default (Vue as VueConstructor<
       selecting: false,
 
       visibleWidth: 0,
-      visibleHeight: 0
+      visibleHeight: 0,
+
+      selectionStartDate: null as Dayjs | null,
+      selectionEndDate: null as Dayjs | null
     };
   }
 });
@@ -1004,13 +1038,11 @@ export default (Vue as VueConstructor<
   background-color: rgba(0, 0, 0, 0.04);
 }
 
-.selected > .day-content {
+.hp-selection {
   background: #87b8e982;
-  color: white;
 }
 
-.selected > .day-content:hover {
-  background: #5b99d682;
+.selected > .day-content {
   color: white;
 }
 

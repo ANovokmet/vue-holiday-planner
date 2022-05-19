@@ -1,6 +1,6 @@
 {
   "name": "vue-holiday-planner",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "private": true,
   "types": "index.d.ts",
   "main": "HolidayPlanner.js",
